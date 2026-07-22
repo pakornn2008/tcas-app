@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกและตรวจสอบกิจกรรม TCAS - โรงเรียนวัดสุทธิวราราม</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Sarabun -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-image: url('https://mytcas.com/img/bg.webp');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 1.25rem;
+        }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        /* Floating Toast Notification Animation */
+        @keyframes slideInRight {
+            from { transform: translateX(110%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.95); }
+        }
+        .toast-enter { animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .toast-exit { animation: fadeOut 0.25s cubic-bezier(0.7, 0, 0.84, 0) forwards; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(241, 241, 241, 0.5); }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Pulse highlight for active revision feedback */
+        .revision-pulse {
+            animation: pulseBg 2s infinite;
+        }
+        @keyframes pulseBg {
+            0% { background-color: rgba(254, 226, 226, 0.8); }
+            50% { background-color: rgba(254, 202, 202, 0.9); }
+            100% { background-color: rgba(254, 226, 226, 0.8); }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-slate-800 antialiased relative selection:bg-pink-500 selection:text-white">
+
+    <!-- Floating Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-[200] flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Announcement Pop-up Modal (แจ้งเตือนก่อนเข้าเว็บ) -->
+    <div id="announcementModal" class="hidden fixed inset-0 z-[150] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-pink-200 space-y-4 transform transition-all">
+            <div class="flex items-center space-x-3 border-b border-slate-100 pb-3">
+                <div class="w-10 h-10 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-xl flex-shrink-0">
+                    <i class="fa-solid fa-bullhorn"></i>
+                </div>
+                <div>
+                    <h3 id="modalNoticeTitle" class="text-lg font-bold text-slate-800">ประกาศสำคัญก่อนเข้าสู่ระบบ</h3>
+                    <p class="text-xs text-slate-500">โรงเรียนวัดสุทธิวราราม - ระบบ TCAS Verified</p>
+                </div>
+            </div>
+            <div id="modalNoticeBody" class="text-sm text-slate-600 leading-relaxed max-h-60 overflow-y-auto bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-line">
+                <!-- Dynamic Pop-up Content -->
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeAnnouncementModal()" class="px-6 py-2.5 bg-pink-600 hover:bg-pink-700 text-white text-sm font-bold rounded-xl shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-check-circle"></i> รับทราบและเข้าสู่ระบบ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox Modal สำหรับพรีวิวรูปภาพหลักฐาน -->
+    <div id="imagePreviewModal" class="hidden fixed inset-0 z-[180] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700">
+            <div class="flex items-center justify-between px-5 py-3 bg-slate-800 text-white border-b border-slate-700">
+                <h4 id="previewModalTitle" class="text-sm font-bold truncate">พรีวิวไฟล์หลักฐาน</h4>
+                <button onclick="closeImagePreview()" class="text-slate-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-4 flex items-center justify-center min-h-[300px] max-h-[80vh] overflow-auto bg-slate-950/50">
+                <img id="previewModalImage" src="" alt="File Preview" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg hidden">
+                <iframe id="previewModalIframe" src="" class="w-full h-[70vh] rounded-lg hidden"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header / Navigation Bar -->
+    <header class="sticky top-0 z-50 glass-nav shadow-md border-b border-slate-200/60">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <!-- Brand & Logos -->
+                <div class="flex items-center space-x-3">
+                    <img src="https://suthi.ac.th/wp-content/uploads/2022/07/SUTHIWARARAM_SCHOOL_LOGO-1-200x300.png" alt="ตราโรงเรียนวัดสุทธิวราราม" class="h-14 w-auto object-contain drop-shadow">
+                    <div class="border-l border-slate-300 pl-3">
+                        <h1 class="text-lg md:text-xl font-bold text-slate-800 leading-tight">โรงเรียนวัดสุทธิวราราม</h1>
+                        <p class="text-xs md:text-sm text-pink-700 font-semibold">Watsuthiwararam School - Activity Portfolio System</p>
+                    </div>
+                </div>
+
+                <!-- TCAS Verified Logo & Navigation -->
+                <div class="flex items-center space-x-4">
+                    <img src="https://verified.mytcas.com/tcas-verified-logo.svg" alt="TCAS Verified Logo" class="h-9 w-auto hidden sm:block">
+                    
+                    <div class="flex items-center space-x-2 border-l border-slate-200 pl-4">
+                        <button id="navStudentBtn" onclick="switchTab('student')" class="px-4 py-2 rounded-lg font-semibold transition text-pink-700 bg-pink-50 hover:bg-pink-100 flex items-center gap-2 text-xs md:text-sm">
+                            <i class="fa-solid fa-user-graduate"></i> <span class="hidden sm:inline"></span>นักเรียน
+                        </button>
+                        
+                        <!-- Admin Switcher / Logged In Indicator -->
+                        <div id="adminNavContainer" class="relative flex items-center gap-2">
+                            <button id="navAdminBtn" onclick="handleAdminNavClick()" class="relative px-4 py-2 rounded-lg font-semibold transition text-slate-600 hover:bg-slate-100 flex items-center gap-2 text-xs md:text-sm">
+                                <i class="fa-solid fa-user-shield"></i> <span id="adminNavText" class="hidden sm:inline">ผู้ดูแลระบบ</span>
+                                <span id="navPendingBadge" class="hidden absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full animate-bounce shadow">0</span>
+                            </button>
+
+                            <!-- Logout Button in Header (จะแสดงเมื่อ Admin ล็อกอินอยู่) -->
+                            <button id="headerLogoutBtn" onclick="adminLogout()" class="hidden px-3 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5" title="ออกจากระบบแอดมิน">
+                                <i class="fa-solid fa-right-from-bracket"></i> <span class="hidden md:inline">ออกจากระบบ</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Banner ประกาศข่าวสารหน้าเว็บ (แยกต่างหากจาก Pop-up) -->
+        <div id="announcementBanner" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm mb-6 flex items-start gap-3">
+            <i class="fa-solid fa-circle-exclamation text-amber-600 text-xl mt-0.5 flex-shrink-0"></i>
+            <div class="flex-1">
+                <h4 id="bannerTitle" class="font-bold text-amber-900 text-sm">ประกาศจากทางโรงเรียน</h4>
+                <p id="bannerBody" class="text-xs text-amber-800 mt-1 whitespace-pre-line"></p>
+            </div>
+        </div>
+
+        <!-- ================= STUDENT VIEW SECTION ================= -->
+        <section id="studentView" class="space-y-8">
+            
+            <!-- Student Status Checker -->
+            <div class="glass-card relative overflow-hidden bg-white/80 backdrop-blur-xl p-6 md:p-10 shadow-xl shadow-slate-200/40 rounded-2xl border border-white border-t-4 border-t-pink-500">
+    
+    <div class="absolute -top-10 -left-10 w-40 h-40 bg-pink-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div class="flex-1 space-y-2">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-pink-50 text-pink-500 flex items-center justify-center text-xl shadow-sm border border-pink-100 hidden sm:flex">
+                    <i class="fa-solid fa-magnifying-glass-chart"></i>
+                </div>
+                <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">ตรวจสอบสถานะการรับรองผลงาน</h2>
+                <img src="https://verified.mytcas.com/tcas-verified-logo.svg" alt="TCAS Verified" class="h-6 w-auto sm:hidden ml-2">
+            </div>
+            <p class="text-slate-500 text-sm md:text-base font-medium sm:pl-14">
+                กรอกเลขประจำตัวประชาชน 13 หลัก หรือเลขประจำตัวนักเรียน 5 หลัก เพื่อตรวจสอบภาพรวมสถานะผลงานของตนเอง
+            </p>
+        </div>
+
+        <div class="flex-1 max-w-md w-full relative group">
+            <div class="relative flex items-center transition-all duration-300 group-focus-within:shadow-lg group-focus-within:shadow-pink-200/50 rounded-2xl">
+                <div class="absolute left-4 text-slate-400">
+                    <i class="fa-regular fa-id-card"></i>
+                </div>
+                <input type="text" id="searchCitizenId" maxlength="13" placeholder="เลข ปชช. 13 หลัก / เลขนักเรียน 5 หลัก" 
+                    class="w-full pl-12 pr-28 py-4 bg-white/90 border-2 border-slate-200 focus:border-pink-400 rounded-2xl focus:ring-4 focus:ring-pink-100 focus:outline-none text-base font-medium tracking-wide text-slate-700 shadow-sm transition-all placeholder:font-normal placeholder:text-slate-400">
+                
+                <button onclick="checkStudentStatus()" class="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-6 rounded-xl transition-all duration-300 font-bold text-sm shadow-md hover:shadow-pink-500/30 flex items-center gap-2 active:scale-95">
+                    <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="studentDashboardSummary" class="hidden mt-10 pt-8 border-t border-slate-200/80 relative z-10">
+        <div class="mb-5 flex items-center justify-between">
+            <h4 id="studentInfoTitle" class="font-bold text-slate-800 text-lg flex items-center gap-2.5">
+                <span class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center text-sm shadow-sm border border-indigo-100">
+                    <i class="fa-solid fa-user-check"></i>
+                </span>
+                สรุปภาพรวมผลงานของคุณ
+            </h4>
+        </div>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="bg-gradient-to-br from-slate-50 to-white p-4 md:p-5 rounded-2xl border border-slate-200 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100 hover:-translate-y-1 transition-all duration-300 text-center flex flex-col justify-center">
+                <div class="text-xs md:text-sm text-slate-500 font-bold mb-1.5 uppercase tracking-wide">ผลงานยื่นทั้งหมด</div>
+                <div id="stStatTotal" class="text-3xl font-black text-slate-800 drop-shadow-sm">0</div>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-50 to-white p-4 md:p-5 rounded-2xl border border-emerald-100 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-100 hover:-translate-y-1 transition-all duration-300 text-center flex flex-col justify-center">
+                <div class="text-xs md:text-sm text-emerald-600 font-bold mb-1.5 uppercase tracking-wide flex justify-center items-center gap-1">
+                    <i class="fa-solid fa-circle-check text-xs"></i> Verified แล้ว
+                </div>
+                <div id="stStatApproved" class="text-3xl font-black text-emerald-700 drop-shadow-sm">0</div>
+            </div>
+            <div class="bg-gradient-to-br from-amber-50 to-white p-4 md:p-5 rounded-2xl border border-amber-100 hover:border-amber-300 hover:shadow-lg hover:shadow-amber-100 hover:-translate-y-1 transition-all duration-300 text-center flex flex-col justify-center">
+                <div class="text-xs md:text-sm text-amber-600 font-bold mb-1.5 uppercase tracking-wide flex justify-center items-center gap-1">
+                    <i class="fa-solid fa-hourglass-half text-xs"></i> รอการตรวจสอบ
+                </div>
+                <div id="stStatPending" class="text-3xl font-black text-amber-700 drop-shadow-sm">0</div>
+            </div>
+            <div class="bg-gradient-to-br from-rose-50 to-white p-4 md:p-5 rounded-2xl border border-rose-100 hover:border-rose-300 hover:shadow-lg hover:shadow-rose-100 hover:-translate-y-1 transition-all duration-300 text-center flex flex-col justify-center">
+                <div class="text-xs md:text-sm text-rose-600 font-bold mb-1.5 uppercase tracking-wide flex justify-center items-center gap-1">
+                    <i class="fa-solid fa-triangle-exclamation text-xs"></i> ต้องแก้ไข/ไม่ครบ
+                </div>
+                <div id="stStatRejected" class="text-3xl font-black text-rose-700 drop-shadow-sm">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="studentStatusResult" class="mt-8 hidden relative z-10">
+        <div class="overflow-x-auto bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <table class="w-full text-left text-sm text-slate-700 whitespace-nowrap md:whitespace-normal">
+                <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-extrabold tracking-wider border-b border-slate-200">
+                    <tr>
+                        <th class="py-4 px-5 text-center w-28">สถานะ</th>
+                        <th class="py-4 px-5">ชื่อโครงการ/กิจกรรม / รายละเอียดการแก้ไข</th>
+                        <th class="py-4 px-5 text-center w-36">หมวดหมู่ TCAS</th>
+                        <th class="py-4 px-5 w-40">วันที่เข้าร่วม</th>
+                        <th class="py-4 px-5 text-center w-32">หลักฐานที่แนบ</th>
+                    </tr>
+                </thead>
+                <tbody id="studentStatusBody" class="divide-y divide-slate-100 bg-white">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+            <!-- Submission Form -->
+            <div class="glass-card p-6 md:p-8 shadow-lg">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-6">
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-circle-plus text-pink-600"></i> บันทึกข้อมูลและยื่นหลักฐานกิจกรรม (TCAS Portfolio)
+                    </h3>
+                    <button type="button" onclick="resetActivityForm()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition">
+                        <i class="fa-solid fa-rotate-left"></i> ล้างข้อมูลฟอร์ม
+                    </button>
+                </div>
+                
+                <form id="activityForm" onsubmit="handleFormSubmit(event)" class="space-y-6">
+                    
+                    <!-- Section 1: Personal Info -->
+                    <div class="p-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
+                        <h4 class="font-bold text-sm text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-id-card text-pink-600"></i> ข้อมูลส่วนตัวนักเรียน
+                        </h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">คำนำหน้าชื่อ <span class="text-red-500">*</span></label>
+                                <select id="title" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 bg-white">
+                                    <option value="">- เลือกคำนำหน้า -</option>
+                                    <option value="นาย">นาย</option>
+                                    <option value="นางสาว">นางสาว</option>
+                                    <option value="เด็กชาย">เด็กชาย</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อ (ภาษาไทย) <span class="text-red-500">*</span></label>
+                                <input type="text" id="firstName" required placeholder="เช่น สมชาย" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">นามสกุล (ภาษาไทย) <span class="text-red-500">*</span></label>
+                                <input type="text" id="lastName" required placeholder="เช่น ใจดี" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">เลข ปชช. 13 หลัก <span class="text-red-500">*</span></label>
+                                <input type="text" id="citizenId" required maxlength="13" pattern="[0-9]{13}" placeholder="เลขบัตรประชาชน 13 หลัก" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                            </div>
+                        </div>
+
+                        <!-- Class, Room, Program Track, and NEW Student ID -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 border-t border-slate-200/60 pt-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">ระดับชั้น <span class="text-red-500">*</span></label>
+                                <select id="grade" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 bg-white">
+                                    <option value="">- เลือกระดับชั้น -</option>
+                                    <option value="ม.1">มัธยมศึกษาปีที่ 1 (ม.1)</option>
+                                    <option value="ม.2">มัธยมศึกษาปีที่ 2 (ม.2)</option>
+                                    <option value="ม.3">มัธยมศึกษาปีที่ 3 (ม.3)</option>
+                                    <option value="ม.4">มัธยมศึกษาปีที่ 4 (ม.4)</option>
+                                    <option value="ม.5">มัธยมศึกษาปีที่ 5 (ม.5)</option>
+                                    <option value="ม.6">มัธยมศึกษาปีที่ 6 (ม.6)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">ห้อง <span class="text-red-500">*</span></label>
+                                <select id="room" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 bg-white">
+                                    <option value="">- เลือกห้อง -</option>
+                                    <option value="1">ห้อง 1</option>
+                                    <option value="2">ห้อง 2</option>
+                                    <option value="3">ห้อง 3</option>
+                                    <option value="4">ห้อง 4</option>
+                                    <option value="5">ห้อง 5</option>
+                                    <option value="6">ห้อง 6</option>
+                                    <option value="7">ห้อง 7</option>
+                                    <option value="8">ห้อง 8</option>
+                                    <option value="9">ห้อง 9</option>
+                                    <option value="10">ห้อง 10</option>
+                                    <option value="11">ห้อง 11</option>
+                                    <option value="12">ห้อง 12</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">เลือกกลุ่มการเรียน <span class="text-red-500">*</span></label>
+                                <select id="programTrack" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 bg-white">
+                                    <option value="">- เลือกกลุ่มการเรียน -</option>
+                                    <option value="เตรียมวิศวกรรมศาสตร์">เตรียมวิศวกรรมศาสตร์</option>
+                                    <option value="เตรียมวิทยาศาสตร์เทคโนโลยี">เตรียมวิทยาศาสตร์เทคโนโลยี</option>
+                                    <option value="เตรียมวิทยาศาสตร์สุขภาพ (โครงการพิเศษ)">เตรียมวิทยาศาสตร์สุขภาพ (โครงการพิเศษ)</option>
+                                    <option value="เตรียมวิศวกรรมเทคโนโลยี (โครงการพิเศษ)">เตรียมวิศวกรรมเทคโนโลยี (โครงการพิเศษ)</option>
+                                    <option value="เตรียมบริหารธุรกิจ">เตรียมบริหารธุรกิจ</option>
+                                    <option value="เตรียมนิเทศศาสตร์">เตรียมนิเทศศาสตร์</option>
+                                    <option value="เตรียมศิลปกรรม">เตรียมศิลปกรรม</option>
+                                    <option value="เตรียมอักษรศาสตร์ - ภาษาอังกฤษ (Intensive)">เตรียมอักษรศาสตร์ - ภาษาอังกฤษ (Intensive)</option>
+                                    <option value="เตรียมอักษรศาสตร์ (ภาษาฝรั่งเศส)">เตรียมอักษรศาสตร์ (ภาษาฝรั่งเศส)</option>
+                                    <option value="เตรียมอักษรศาสตร์ (ภาษาจีน)">เตรียมอักษรศาสตร์ (ภาษาจีน)</option>
+                                    <option value="เตรียมศิลปศาสตร์ ดนตรีสากล">เตรียมศิลปศาสตร์ ดนตรีสากล</option>
+                                    <option value="เตรียมสังคมศาสตร์">เตรียมสังคมศาสตร์</option>
+                                    <option value="เตรียมวิทยาการกีฬา">เตรียมวิทยาการกีฬา</option>
+                                </select>
+                            </div>
+                            <!-- NEW FIELD: เลขประจำตัวนักเรียน (วางหลังกลุ่มการเรียนตามโจทย์) -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">เลขประจำตัวนักเรียน (5 หลัก) <span class="text-red-500">*</span></label>
+                                <input type="text" id="studentId" required maxlength="5" pattern="[0-9]{5}" placeholder="เช่น 50472" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Form Template Selection -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-bold text-slate-800">1. เลือกประเภทแบบฟอร์มบันทึกข้อมูล <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <label class="cursor-pointer border-2 border-slate-200 rounded-xl p-4 flex items-center gap-3 hover:bg-pink-50 hover:border-pink-300 transition" onclick="toggleFormType('activity')">
+                                <input type="radio" name="formType" value="activity" required class="w-4 h-4 text-pink-600 focus:ring-pink-500">
+                                <div>
+                                    <h4 class="font-bold text-sm text-slate-800">01-activities.xls (กิจกรรม)</h4>
+                                    <p class="text-xs text-slate-500">กิจกรรมทั่วไป, บทบาทในโรงเรียน</p>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer border-2 border-slate-200 rounded-xl p-4 flex items-center gap-3 hover:bg-pink-50 hover:border-pink-300 transition" onclick="toggleFormType('prize')">
+                                <input type="radio" name="formType" value="prize" class="w-4 h-4 text-pink-600 focus:ring-pink-500">
+                                <div>
+                                    <h4 class="font-bold text-sm text-slate-800">02-prizes.xls (รางวัล/เกียรติบัตร)</h4>
+                                    <p class="text-xs text-slate-500">รางวัลที่ได้รับ, เหรียญรางวัล</p>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer border-2 border-slate-200 rounded-xl p-4 flex items-center gap-3 hover:bg-pink-50 hover:border-pink-300 transition" onclick="toggleFormType('project')">
+                                <input type="radio" name="formType" value="project" class="w-4 h-4 text-pink-600 focus:ring-pink-500">
+                                <div>
+                                    <h4 class="font-bold text-sm text-slate-800">03-projects.xls (โครงงาน)</h4>
+                                    <p class="text-xs text-slate-500">โครงงานวิทยาศาสตร์, งานวิจัย, IS</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: TCAS Category Selection -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-bold text-slate-800">2. เลือกหมวดหมู่ TCAS (Category) <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <label class="cursor-pointer border border-slate-200 rounded-xl p-3 bg-white hover:border-indigo-400 hover:shadow transition">
+                                <div class="flex items-start gap-2">
+                                    <input type="radio" name="tcasCategory" value="T" required class="mt-1 text-indigo-600 focus:ring-indigo-500">
+                                    <div>
+                                        <div class="font-bold text-xs text-indigo-700">1. T- Talent & Creativity</div>
+                                        <div class="text-xs text-slate-700 font-semibold mt-0.5">ความสามารถพิเศษ/ศิลปวัฒนธรรม</div>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer border border-slate-200 rounded-xl p-3 bg-white hover:border-emerald-400 hover:shadow transition">
+                                <div class="flex items-start gap-2">
+                                    <input type="radio" name="tcasCategory" value="C" class="mt-1 text-emerald-600 focus:ring-emerald-500">
+                                    <div>
+                                        <div class="font-bold text-xs text-emerald-700">2. C- Contribution to Society</div>
+                                        <div class="text-xs text-slate-700 font-semibold mt-0.5">จิตอาสาและภาวะผู้นำ</div>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer border border-slate-200 rounded-xl p-3 bg-white hover:border-amber-400 hover:shadow transition">
+                                <div class="flex items-start gap-2">
+                                    <input type="radio" name="tcasCategory" value="A" class="mt-1 text-amber-600 focus:ring-amber-500">
+                                    <div>
+                                        <div class="font-bold text-xs text-amber-700">3. A- Academic Excellence</div>
+                                        <div class="text-xs text-slate-700 font-semibold mt-0.5">วิชาการและทักษะเฉพาะทาง</div>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer border border-slate-200 rounded-xl p-3 bg-white hover:border-rose-400 hover:shadow transition">
+                                <div class="flex items-start gap-2">
+                                    <input type="radio" name="tcasCategory" value="S" class="mt-1 text-rose-600 focus:ring-rose-500">
+                                    <div>
+                                        <div class="font-bold text-xs text-rose-700">4. S- Self-Development</div>
+                                        <div class="text-xs text-slate-700 font-semibold mt-0.5">การพัฒนาตนเอง</div>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Details & Specific Fields -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อโครงการ/กิจกรรม/งานวิจัย (Program Title) <span class="text-red-500">*</span></label>
+                            <input type="text" id="programTitle" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                        </div>
+
+                        <div id="dynamicFieldContainer" class="md:col-span-2 hidden bg-pink-50/60 p-3.5 rounded-lg border border-pink-200">
+                            <label id="dynamicLabel" class="block text-xs font-bold text-pink-800 mb-1">ฟิลด์ระบุเฉพาะ</label>
+                            <input type="text" id="dynamicInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 bg-white">
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">คำบรรยาย/รายละเอียดกิจกรรม (Description)</label>
+                            <textarea id="description" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">วันที่เริ่ม (DD/MM/YYYY พ.ศ.) <span class="text-red-500">*</span></label>
+                            <input type="text" id="startDate" required placeholder="เช่น 15/10/2568" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">วันที่สิ้นสุด (DD/MM/YYYY พ.ศ.) <span class="text-red-500">*</span></label>
+                            <input type="text" id="endDate" required placeholder="วันเดียวให้ใส่ค่าเดิม" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+                        </div>
+
+                        <div>
+    <label class="block text-xs font-bold text-slate-700 mb-1">ปีการศึกษา (Year)</label>
+    <select id="year" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-pink-500 focus:outline-none">
+        <option value="2574">2574</option>
+        <option value="2573">2573</option>
+        <option value="2572">2572</option>
+        <option value="2571">2571</option>
+        <option value="2570">2570</option>
+        <option value="2569" selected>2569</option>
+        <option value="2568">2568</option>
+        <option value="2567">2567</option>
+        <option value="2566">2566</option>
+        <option value="2565">2565</option>
+        <option value="2564">2564</option>
+    </select>
+</div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">ระดับกิจกรรม/การแข่งขัน (Level)</label>
+                            <select id="level" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 bg-white">
+                                <option value="">ไม่ระบุ</option>
+                                <option value="L1">L1 - ระดับโรงเรียน/สถาบัน</option>
+                                <option value="L2">L2 - ระดับจังหวัด/เขต/ภาค</option>
+                                <option value="L3">L3 - ระดับชาติ</option>
+                                <option value="L4">L4 - ระดับนานาชาติ</option>
+                            </select>
+                        </div>
+                            <div>
+    <label class="block text-xs font-bold text-slate-700 mb-1">จำนวนชั่วโมง (Hours)</label>
+    <input type="number" id="hours" min="0" placeholder="ว่าง หรือ 0 = ไม่ระบุ" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+</div>
+
+<div>
+    <label class="block text-xs font-bold text-slate-700 mb-1">ค่าใช้จ่ายในการเข้าร่วม/สมัคร (บาท)</label>
+    <input type="number" id="fee" min="0" placeholder="เช่น 1500 (ว่าง หรือ 0 = ไม่มีค่าใช้จ่าย)" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500">
+</div>
+                    </div>
+
+                    <!-- Section 5: Direct File Uploads & Evidence Links (พร้อมฟังก์ชันลบไฟล์ได้ทั้งสองไฟล์) -->
+                    <div class="p-4 bg-blue-50/70 rounded-xl border border-blue-200 space-y-4">
+                        <h4 class="font-bold text-sm text-blue-900 flex items-center gap-2">
+                            <i class="fa-solid fa-cloud-arrow-up text-blue-600"></i> อัปโหลดและแนบหลักฐานกิจกรรม
+                        </h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Certificate Upload (เพิ่มการลบไฟล์และพรีวิว) -->
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                                        <i class="fa-solid fa-award text-amber-500"></i> อัปโหลดไฟล์เกียรติบัตร
+                                    </label>
+                                    <!-- ปุ่มลบไฟล์เกียรติบัตร -->
+                                    <button type="button" id="clearCertBtn" onclick="clearSelectedFile('cert')" class="hidden text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1">
+                                        <i class="fa-solid fa-trash-can"></i> ลบไฟล์
+                                    </button>
+                                </div>
+                                <input type="file" id="certFileInput" onchange="handleFileChange(event, 'cert')" accept="image/*,.pdf" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer">
+                                
+                                <!-- File Preview Status -->
+                                <div id="certFileStatus" class="hidden p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs flex items-center justify-between">
+                                    <span id="certFileName" class="truncate font-semibold text-amber-900 text-[11px]"></span>
+                                    <button type="button" onclick="previewSelectedLocalFile('cert')" class="text-amber-700 hover:underline font-bold text-[11px] flex-shrink-0 ml-1">
+                                        <i class="fa-solid fa-eye"></i> ดูไฟล์
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">รองรับไฟล์ JPG, PNG, PDF</p>
+                            </div>
+
+                            <!-- Photo Upload (เพิ่มการลบไฟล์และพรีวิว) -->
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                                        <i class="fa-solid fa-images text-emerald-500"></i> อัปโหลดรูปภาพกิจกรรม
+                                    </label>
+                                    <!-- ปุ่มลบไฟล์รูปภาพกิจกรรม -->
+                                    <button type="button" id="clearPhotoBtn" onclick="clearSelectedFile('photo')" class="hidden text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1">
+                                        <i class="fa-solid fa-trash-can"></i> ลบไฟล์
+                                    </button>
+                                </div>
+                                <input type="file" id="photoFileInput" onchange="handleFileChange(event, 'photo')" accept="image/*" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+                                
+                                <!-- File Preview Status -->
+                                <div id="photoFileStatus" class="hidden p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs flex items-center justify-between">
+                                    <span id="photoFileName" class="truncate font-semibold text-emerald-900 text-[11px]"></span>
+                                    <button type="button" onclick="previewSelectedLocalFile('photo')" class="text-emerald-700 hover:underline font-bold text-[11px] flex-shrink-0 ml-1">
+                                        <i class="fa-solid fa-eye"></i> ดูไฟล์
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">รองรับไฟล์รูปภาพ JPG, PNG</p>
+                            </div>
+
+                            <!-- PR Link -->
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                <label class="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                                    <i class="fa-solid fa-newspaper text-indigo-500"></i> ลิงก์ข่าวประชาสัมพันธ์
+                                </label>
+                                <input type="url" id="newsUrl" placeholder="https://suthi.ac.th/news/..." class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500">
+                                <p class="text-[10px] text-slate-400">ระบุเป็น URL ลิงก์ข่าว (ถ้ามี)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="submitBtn" type="submit" class="w-full py-3.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-base">
+                        <i class="fa-solid fa-paper-plane"></i> บันทึกและส่งข้อมูลกิจกรรมเข้าระบบ
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= ADMIN LOGIN MODAL ================= -->
+        <div id="adminLoginModal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full relative border border-slate-100">
+                <button onclick="closeAdminLogin()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+                <div class="text-center mb-6">
+                    <img src="https://suthi.ac.th/wp-content/uploads/2022/07/SUTHIWARARAM_SCHOOL_LOGO-1-200x300.png" class="h-16 mx-auto mb-3">
+                    <h3 class="text-xl font-bold text-slate-800">เข้าสู่ระบบแอดมิน</h3>
+                    <p class="text-xs text-slate-500">กลุ่มบริหารวิชาการ โรงเรียนวัดสุทธิวราราม</p>
+                </div>
+                <input type="password" id="adminPassword" onkeyup="if(event.key==='Enter') verifyAdmin()" placeholder="รหัสผ่านเข้าสู่ระบบ" class="w-full px-4 py-3 border border-slate-300 rounded-lg text-center text-base tracking-widest focus:ring-2 focus:ring-pink-500 mb-4">
+                <button onclick="verifyAdmin()" class="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-key"></i> ยืนยันรหัสผ่าน
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= ADMIN REVISION REMARK MODAL (ระบบแจ้งข้อความแก้นักเรียน) ================= -->
+        <div id="adminRemarkModal" class="hidden fixed inset-0 z-[160] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-rose-200 space-y-4 relative">
+                <button onclick="closeRemarkModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+                <div class="flex items-center space-x-3 border-b border-slate-100 pb-3">
+                    <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xl flex-shrink-0">
+                        <i class="fa-solid fa-comment-dots"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">แจ้งข้อความแก้ไขผลงานไปยังนักเรียน</h3>
+                        <p class="text-xs text-slate-500" id="remarkModalTargetName">ผลงาน: -</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ระบุรายละเอียดหรือสิ่งที่ต้องให้นักเรียนแก้ไข <span class="text-red-500">*</span></label>
+                    <textarea id="adminRemarkInput" rows="4" placeholder="เช่น ไฟล์เกียรติบัตรไม่ชัดเจน, กรุณาอัปโหลดรูปภาพกิจกรรมเพิ่มเติม, หรือระบุวันที่ไม่ถูกต้อง..." class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-slate-50"></textarea>
+                </div>
+                <div class="flex items-center justify-between pt-2">
+                    <button onclick="clearCurrentRemark()" class="text-xs text-slate-400 hover:text-rose-600 font-semibold underline">
+                        ลบข้อความแก้ไขนี้
+                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="closeRemarkModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">ยกเลิก</button>
+                        <button onclick="saveAdminRemark()" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-paper-plane"></i> บันทึกและแจ้งแก้ไข
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= ADMIN DASHBOARD SECTION ================= -->
+        <section id="adminView" class="hidden space-y-6">
+            
+            <!-- Admin Top Header & Quick Links (พร้อมปุ่มออกจากระบบ) -->
+            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 glass-card p-6 md:p-8 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/40 border border-white border-t-4 border-t-indigo-600 relative overflow-hidden">
+    
+    <div class="absolute top-0 right-0 -mt-10 -mr-10 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative z-10 flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">
+                แดชบอร์ดแอดมิน 
+                <span class="text-indigo-600 hidden md:inline">|</span> 
+                <span class="text-xl md:text-2xl text-slate-600 font-bold">บริหารจัดการกิจกรรมและ Verified TCAS</span>
+            </h2>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200 shadow-sm">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                Session Active
+            </span>
+        </div>
+        <p class="text-sm font-medium text-slate-500 flex items-center gap-2">
+            <i class="fa-solid fa-school text-slate-400"></i>
+            งานแนะแนว และกลุ่มบริหารวิชาการ โรงเรียนวัดสุทธิวราราม
+        </p>
+    </div>
+
+    <div class="relative z-10 flex flex-wrap items-center gap-3">
+        <button onclick="fetchAdminData()" class="group px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded-xl font-semibold text-sm transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95">
+            <i class="fa-solid fa-rotate text-indigo-500 group-hover:rotate-180 transition-transform duration-500"></i> 
+            รีเฟรชข้อมูล
+        </button>
+
+        <button onclick="exportToCSV()" class="group px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-semibold text-sm shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/40 transition-all duration-300 flex items-center gap-2 active:scale-95 border border-emerald-600/50">
+            <i class="fa-solid fa-file-excel group-hover:-translate-y-0.5 transition-transform duration-300"></i> 
+            ส่งออกข้อมูล (CSV)
+        </button>
+
+        <a href="https://drive.google.com/drive/folders/1olQyJMO41ZmzZPLXk0prvjXSlKEhuhfq" target="_blank" class="group px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold text-sm shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/40 transition-all duration-300 flex items-center gap-2 active:scale-95 border border-blue-700/50">
+            <i class="fa-brands fa-google-drive group-hover:scale-110 transition-transform duration-300"></i> 
+            คลัง Google Drive
+        </a>
+
+        <button onclick="adminLogout()" class="group px-4 py-2.5 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-xl font-semibold text-sm shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 active:scale-95">
+            <i class="fa-solid fa-right-from-bracket group-hover:translate-x-1 transition-transform duration-300"></i> 
+            ออกจากระบบ
+        </button>
+    </div>
+</div>
+
+            <!-- Admin Alert Banner for Pending Submissions -->
+            <div id="adminPendingNoticeBanner" class="hidden bg-rose-500 text-white p-4 rounded-xl shadow-lg flex items-center justify-between animate-pulse">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-bell text-2xl"></i>
+                    <div>
+                        <div class="font-bold text-sm">มีการแจ้งเตือนผลงานใหม่รอการอนุมัติ!</div>
+                        <div class="text-xs text-rose-100">มีรายการผลงานยื่นเข้ามาใหม่จำนวน <span id="adminPendingCountBanner" class="font-bold underline">0</span> รายการ ที่รอการตรวจสอบสถานะ</div>
+                    </div>
+                </div>
+                <button onclick="filterByStatus('PENDING')" class="px-3 py-1.5 bg-white text-rose-600 rounded-lg font-bold text-xs hover:bg-rose-50 transition shadow">
+                    กรองดูเฉพาะรออนุมัติ
+                </button>
+            </div>
+
+            <!-- SECTION: Admin Overview Dashboard Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="glass-card relative overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-white shadow-xl shadow-slate-200/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-200/50 transition-all duration-300 group flex items-center justify-between">
+        <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-400/10 rounded-full blur-2xl group-hover:bg-blue-400/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10">
+            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">ผลงานทั้งหมดในระบบ</div>
+            <div id="admStatTotal" class="text-3xl font-black text-slate-800 mt-1 drop-shadow-sm">0</div>
+            <div class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
+                <i class="fa-solid fa-chart-line"></i> รายการสะสม
+            </div>
+        </div>
+        <div class="relative z-10 w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100/50 text-blue-600 flex items-center justify-center text-2xl shadow-sm border border-blue-100 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+            <i class="fa-solid fa-folder-open drop-shadow-sm"></i>
+        </div>
+    </div>
+
+    <div class="glass-card relative overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-white shadow-xl shadow-slate-200/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-200/50 transition-all duration-300 group flex items-center justify-between">
+        <div class="absolute -right-4 -top-4 w-24 h-24 bg-amber-400/10 rounded-full blur-2xl group-hover:bg-amber-400/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10">
+            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">รอการอนุมัติ (Pending)</div>
+            <div id="admStatPending" class="text-3xl font-black text-amber-500 mt-1 drop-shadow-sm">0</div>
+            <div class="text-[11px] text-amber-600/80 font-medium mt-1.5 flex items-center gap-1.5">
+                <i class="fa-solid fa-clock-rotate-left"></i> ต้องดำเนินการตรวจสอบ
+            </div>
+        </div>
+        <div class="relative z-10 w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100/50 text-amber-500 flex items-center justify-center text-2xl shadow-sm border border-amber-100 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
+            <i class="fa-solid fa-hourglass-half drop-shadow-sm"></i>
+        </div>
+    </div>
+
+    <div class="glass-card relative overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-white shadow-xl shadow-slate-200/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-200/50 transition-all duration-300 group flex items-center justify-between">
+        <div class="absolute -right-4 -top-4 w-24 h-24 bg-emerald-400/10 rounded-full blur-2xl group-hover:bg-emerald-400/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10">
+            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Verified (Approved)</div>
+            <div id="admStatApproved" class="text-3xl font-black text-emerald-600 mt-1 drop-shadow-sm">0</div>
+            <div class="text-[11px] text-emerald-600/80 font-medium mt-1.5 flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-check"></i> อนุมัติเรียบร้อยแล้ว
+            </div>
+        </div>
+        <div class="relative z-10 w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-500 flex items-center justify-center text-2xl shadow-sm border border-emerald-100 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+            <i class="fa-solid fa-circle-check drop-shadow-sm"></i>
+        </div>
+    </div>
+
+    <div class="glass-card relative overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-2xl border border-white shadow-xl shadow-slate-200/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-rose-200/50 transition-all duration-300 group flex items-center justify-between">
+        <div class="absolute -right-4 -top-4 w-24 h-24 bg-rose-400/10 rounded-full blur-2xl group-hover:bg-rose-400/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10">
+            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">ข้อมูลไม่ครบ (Rejected)</div>
+            <div id="admStatRejected" class="text-3xl font-black text-rose-500 mt-1 drop-shadow-sm">0</div>
+            <div class="text-[11px] text-rose-600/80 font-medium mt-1.5 flex items-center gap-1.5">
+                <i class="fa-solid fa-reply-all"></i> ส่งกลับให้นักเรียนแก้ไข
+            </div>
+        </div>
+        <div class="relative z-10 w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100/50 text-rose-500 flex items-center justify-center text-2xl shadow-sm border border-rose-100 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
+            <i class="fa-solid fa-circle-xmark drop-shadow-sm"></i>
+        </div>
+    </div>
+</div>
+
+            <!-- SECTION: Admin Category & Form Distribution Breakdown -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="glass-card p-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/40 border border-white relative overflow-hidden flex flex-col justify-center">
+        
+        <div class="absolute -right-6 -top-6 w-24 h-24 bg-pink-100 rounded-full blur-2xl opacity-60 pointer-events-none"></div>
+
+        <h4 class="relative z-10 text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center gap-3 mb-5">
+            <span class="w-8 h-8 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center border border-pink-100 shadow-sm">
+                <i class="fa-solid fa-chart-pie"></i>
+            </span>
+            สัดส่วนตามหมวดหมู่ TCAS
+        </h4>
+        
+        <div class="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/80 rounded-xl hover:shadow-md hover:shadow-indigo-100 hover:-translate-y-1 transition-all duration-300">
+                <div class="text-[11px] font-bold text-indigo-500 uppercase tracking-wider mb-1">T-Talent</div>
+                <div id="catStatT" class="text-2xl font-black text-indigo-900 drop-shadow-sm">0</div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/80 rounded-xl hover:shadow-md hover:shadow-emerald-100 hover:-translate-y-1 transition-all duration-300">
+                <div class="text-[11px] font-bold text-emerald-500 uppercase tracking-wider mb-1">C-Contrib</div>
+                <div id="catStatC" class="text-2xl font-black text-emerald-900 drop-shadow-sm">0</div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-amber-50 to-white border border-amber-100/80 rounded-xl hover:shadow-md hover:shadow-amber-100 hover:-translate-y-1 transition-all duration-300">
+                <div class="text-[11px] font-bold text-amber-500 uppercase tracking-wider mb-1">A-Academic</div>
+                <div id="catStatA" class="text-2xl font-black text-amber-900 drop-shadow-sm">0</div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-rose-50 to-white border border-rose-100/80 rounded-xl hover:shadow-md hover:shadow-rose-100 hover:-translate-y-1 transition-all duration-300">
+                <div class="text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-1">S-Self-Dev</div>
+                <div id="catStatS" class="text-2xl font-black text-rose-900 drop-shadow-sm">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-card p-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/40 border border-white relative overflow-hidden flex flex-col justify-center">
+        
+        <div class="absolute -right-6 -top-6 w-24 h-24 bg-indigo-100 rounded-full blur-2xl opacity-60 pointer-events-none"></div>
+
+        <h4 class="relative z-10 text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center gap-3 mb-5">
+            <span class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center border border-indigo-100 shadow-sm">
+                <i class="fa-solid fa-bars-progress"></i>
+            </span>
+            สัดส่วนประเภทแบบฟอร์ม
+        </h4>
+        
+        <div class="relative z-10 grid grid-cols-3 gap-3">
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-slate-50 to-white border border-slate-200/80 rounded-xl hover:border-blue-200 hover:shadow-md hover:shadow-blue-100 hover:-translate-y-1 transition-all duration-300 group">
+                <div class="text-[11px] font-bold text-slate-500 group-hover:text-blue-600 uppercase tracking-wider mb-1 transition-colors">01-Activities</div>
+                <div id="formStatAct" class="text-2xl font-black text-slate-800 group-hover:text-blue-900 drop-shadow-sm transition-colors">0</div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-slate-50 to-white border border-slate-200/80 rounded-xl hover:border-amber-200 hover:shadow-md hover:shadow-amber-100 hover:-translate-y-1 transition-all duration-300 group">
+                <div class="text-[11px] font-bold text-slate-500 group-hover:text-amber-600 uppercase tracking-wider mb-1 transition-colors">02-Prizes</div>
+                <div id="formStatPrz" class="text-2xl font-black text-slate-800 group-hover:text-amber-900 drop-shadow-sm transition-colors">0</div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-slate-50 to-white border border-slate-200/80 rounded-xl hover:border-emerald-200 hover:shadow-md hover:shadow-emerald-100 hover:-translate-y-1 transition-all duration-300 group">
+                <div class="text-[11px] font-bold text-slate-500 group-hover:text-emerald-600 uppercase tracking-wider mb-1 transition-colors">03-Projects</div>
+                <div id="formStatPrj" class="text-2xl font-black text-slate-800 group-hover:text-emerald-900 drop-shadow-sm transition-colors">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+            <!-- Admin Announcement Editor Box (แยกปรับปรุง 2 ระบบชัดเจน) -->
+            <div class="glass-card p-6 shadow-lg border-l-4 border-amber-500 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-bullhorn text-amber-500"></i> จัดการระบบประกาศข่าวสารและแจ้งเตือนต้อนรับ
+                    </h3>
+                    <button onclick="saveAdminNotice()" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่าประกาศทั้งหมด
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 1. ประกาศข่าวสารหน้าเว็บ (Banner) -->
+                    <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-bold text-amber-900 text-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-flag"></i> 1. ประกาศข่าวสารหน้าเว็บ (Banner)
+                            </h4>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-900">
+                                <input type="checkbox" id="adminBannerActive" class="w-4 h-4 text-amber-600 rounded"> เปิดใช้งาน
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">หัวข้อประกาศ Banner</label>
+                            <input type="text" id="adminBannerTitle" placeholder="เช่น ประกาศกำหนดการส่งพอร์ต TCAS69" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">เนื้อหาประกาศ Banner</label>
+                            <textarea id="adminBannerBody" rows="3" placeholder="ข้อความรายละเอียดข่าวสารที่ต้องการให้แสดงค้างบนหน้าเว็บ..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- 2. แจ้งเตือนก่อนเข้าเว็บ (Pop-up Modal) -->
+                    <div class="bg-pink-50/50 p-4 rounded-xl border border-pink-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-bold text-pink-900 text-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-window-restore"></i> 2. แจ้งเตือนต้อนรับก่อนเข้าเว็บ (Pop-up)
+                            </h4>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-pink-900">
+                                <input type="checkbox" id="adminPopUpActive" class="w-4 h-4 text-pink-600 rounded"> เปิดใช้งาน Pop-up
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">หัวข้อ Pop-up ต้อนรับ</label>
+                            <input type="text" id="adminPopUpTitle" placeholder="เช่น ยินดีต้อนรับสู่ระบบ TCAS Verified" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">เนื้อหา Pop-up ต้อนรับ</label>
+                            <textarea id="adminPopUpBody" rows="3" placeholder="ข้อความแจ้งเตือนสำคัญที่จะเด้งขึ้นมาเมื่อเข้าหน้าเว็บครั้งแรก..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: Search, Filters & Admin Data Table -->
+            <div class="glass-card p-6 shadow-lg space-y-4">
+                
+                <!-- Search & Filters Toolbar -->
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-indigo-600"></i> รายการผลงานนักเรียนรอการตรวจสอบและอนุมัติ
+                        </h3>
+                        
+                        <!-- Bulk Actions Button (ปุ่มทำรายการแบบกลุ่ม) -->
+                        <div id="bulkActionsContainer" class="hidden flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-lg">
+                            <span id="selectedCountText" class="text-xs font-bold text-indigo-700">เลือก 0 รายการ</span>
+                            <button onclick="bulkApproveSelected()" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold shadow">
+                                อนุมัติทั้งหมด
+                            </button>
+                            <button onclick="bulkDeleteSelected()" class="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold shadow">
+                                ลบที่เลือก
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Search Input and Filters -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Keyword Search (รองรับชื่อ, เลขปชช, และ เลขประจำตัวนักเรียน) -->
+                        <div class="relative min-w-[220px]">
+                            <input type="text" id="adminSearchInput" onkeyup="handleAdminSearchAndFilter()" placeholder="ชื่อ / เลข ปชช / เลขนักเรียน..." class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-pink-500">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-400 text-xs"></i>
+                        </div>
+
+                        <!-- Grade Filter Dropdown -->
+                        <select id="adminGradeFilter" onchange="handleAdminSearchAndFilter()" class="border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-xs font-semibold text-slate-700">
+                            <option value="ALL">ทุกระดับชั้น</option>
+                            <option value="ม.1">ม.1</option>
+                            <option value="ม.2">ม.2</option>
+                            <option value="ม.3">ม.3</option>
+                            <option value="ม.4">ม.4</option>
+                            <option value="ม.5">ม.5</option>
+                            <option value="ม.6">ม.6</option>
+                        </select>
+
+                        <!-- Status Filter Dropdown -->
+                        <select id="adminStatusFilter" onchange="handleAdminSearchAndFilter()" class="border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-xs font-semibold text-slate-700">
+                            <option value="ALL">สถานะทั้งหมด</option>
+                            <option value="PENDING">รอการยืนยัน (Pending)</option>
+                            <option value="APPROVED">Verified แล้ว (Approved)</option>
+                            <option value="REJECTED">ข้อมูลไม่ครบ/ต้องแก้ไข (Rejected)</option>
+                        </select>
+
+                        <!-- Category Filter Dropdown -->
+                        <select id="adminCatFilter" onchange="handleAdminSearchAndFilter()" class="border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-xs font-semibold text-slate-700">
+                            <option value="ALL">ทุกหมวด TCAS</option>
+                            <option value="T">T - Talent</option>
+                            <option value="C">C - Contribution</option>
+                            <option value="A">A - Academic</option>
+                            <option value="S">S - Self-Dev</option>
+                        </select>
+
+                        <!-- Page Size Selector -->
+                        <select id="itemsPerPageSelect" onchange="changeItemsPerPage(this.value)" class="border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-xs font-bold text-slate-700">
+                            <option value="5" selected>5 แถว/หน้า</option>
+                            <option value="10">10 แถว/หน้า</option>
+                            <option value="20">20 แถว/หน้า</option>
+                            <option value="50">50 แถว/หน้า</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Submissions Table (รวมฟิลด์ เลขประจำตัวนักเรียน) -->
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left text-sm text-slate-700 whitespace-nowrap">
+                        <thead class="bg-slate-800 text-white text-xs uppercase font-medium">
+                            <tr>
+                                <th class="py-3 px-3 text-center">
+                                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllRows(this.checked)" class="w-4 h-4 rounded text-pink-600">
+                                </th>
+                                <th class="py-3 px-3 text-center">สถานะ</th>
+                                <th class="py-3 px-3">นักเรียน (เลขนักเรียน / ปชช. / สายเรียน)</th>
+                                <th class="py-3 px-3 text-center">แบบฟอร์ม/TCAS</th>
+                                <th class="py-3 px-3">ชื่อโครงการ/กิจกรรม / ข้อความแก้ไข</th>
+                                <th class="py-3 px-3">วันที่เริ่ม-สิ้นสุด</th>
+                                <th class="py-3 px-3 text-center">หลักฐานไฟล์แนบ</th>
+                                <th class="py-3 px-3 text-center">ปรับสถานะ / แจ้งข้อความแก้</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminTableBody" class="divide-y divide-slate-200 bg-white">
+                            <!-- Dynamic Admin Rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Footer Bar -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-200">
+                    <div id="paginationInfo" class="text-xs text-slate-500 font-semibold">
+                        กำลังแสดง 0 ถึง 0 จาก 0 รายการ
+                    </div>
+                    <div id="paginationButtons" class="flex items-center space-x-1">
+                        <!-- Pagination Buttons Rendered Dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="bg-slate-900 text-slate-300 border-t border-slate-800 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center border-b border-slate-800 pb-8">
+                <div class="space-y-3">
+                    <div class="flex items-center space-x-3">
+                        <img src="https://suthi.ac.th/wp-content/uploads/2022/07/SUTHIWARARAM_SCHOOL_LOGO-1-200x300.png" class="h-12 w-auto bg-white/10 p-1 rounded-lg">
+                        <div>
+                            <h3 class="text-lg font-bold text-white">โรงเรียนวัดสุทธิวราราม</h3>
+                            <p class="text-xs text-slate-400">Watsuthiwararam School</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed max-w-lg">
+                        252 ถนนเจริญกรุง แขวงยานนาวา เขตสาทร กรุงเทพมหานคร 10120<br>
+                        โทรศัพท์: 02-211-4192, 02-211-6709 | อีเมล: <a href="mailto:vichakarn@suthi.ac.th" class="text-pink-400 hover:underline">vichakarn@suthi.ac.th</a>
+                    </p>
+                </div>
+
+                <div class="space-y-3 md:text-right">
+                    <div class="flex md:justify-end items-center gap-2">
+                        <img src="https://verified.mytcas.com/tcas-verified-logo.svg" alt="TCAS Verified" class="h-8 w-auto">
+                    </div>
+                    <p class="text-xs text-slate-300">
+                        <span class="text-pink-400 font-semibold">จัดทำและพัฒนาโดย:</span><br>
+                        นายปกรณ์ ภูนุพา ศิษย์เก่าโรงเรียนวัดสุทธิวราราม ส.ธ.50472<br>
+                        ร่วมกับงานแนะแนว และกลุ่มบริหารวิชาการ โรงเรียนวัดสุทธิวราราม
+                    </p>
+                </div>
+            </div>
+
+            <div class="pt-6 text-center text-xs text-slate-500">
+                <p>&copy; 2026 Watsuthiwararam School. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        const STATUS_ICONS = {
+            APPROVED: 'https://mytcas.com/img/i/i-yes.svg',
+            REJECTED: 'https://mytcas.com/img/i/i-no.svg',
+            PENDING: 'https://mytcas.com/img/i/i-not.svg'
+        };
+
+        const STATUS_TEXT = {
+            APPROVED: 'Verified เรียบร้อยแล้ว',
+            REJECTED: 'ข้อมูลไม่ครบ/ต้องแก้ไข',
+            PENDING: 'รอการยืนยัน'
+        };
+
+        // State variables
+        let adminDataList = [];          // Master Data
+        let filteredAdminList = [];      // Filtered & Searched Data
+        let selectedRowIds = new Set();  // Set ของ ID ที่ถูกเลือกทำรายการแบบกลุ่ม
+        let currentPage = 1;
+        let itemsPerPage = 5;
+        let activeRemarkItemId = null;  // ID สำหรับใส่ Remark แก้ไข
+
+        // File Objects in Memory for Upload & Preview
+        let currentCertFileObj = null;
+        let currentPhotoFileObj = null;
+
+        // Initialize Page & Session Checking
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAdminSessionStatus();
+            loadAnnouncement();
+            fetchAdminData();
+        });
+
+        // Check Session Persistence (ตรวจสอบการจดจำเซสซั่นแอดมิน)
+        function checkAdminSessionStatus() {
+            const isAdminLoggedIn = sessionStorage.getItem('suthi_admin_auth') === 'true' || localStorage.getItem('suthi_admin_auth') === 'true';
+            const adminNavText = document.getElementById('adminNavText');
+            const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+
+            if (isAdminLoggedIn) {
+                adminNavText.innerText = 'ผู้ดูแลระบบ (เข้าสู่ระบบแล้ว)';
+                headerLogoutBtn.classList.remove('hidden');
+            } else {
+                adminNavText.innerText = 'ผู้ดูแลระบบ';
+                headerLogoutBtn.classList.add('hidden');
+            }
+        }
+
+        // Floating Toast Notification System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgBg = 'bg-slate-900';
+            let icon = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+
+            if (type === 'success') {
+                bgBg = 'bg-emerald-900 border border-emerald-500/40';
+                icon = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else if (type === 'error') {
+                bgBg = 'bg-rose-900 border border-rose-500/40';
+                icon = '<i class="fa-solid fa-circle-xmark text-rose-400"></i>';
+            } else if (type === 'warning') {
+                bgBg = 'bg-amber-900 border border-amber-500/40';
+                icon = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+            }
+
+            toast.className = `toast-enter pointer-events-auto flex items-center gap-3 ${bgBg} text-white text-xs sm:text-sm px-4 py-3.5 rounded-2xl shadow-2xl border border-white/10`;
+            toast.innerHTML = `
+                <div class="text-xl flex-shrink-0">${icon}</div>
+                <div class="flex-1 font-medium leading-tight">${message}</div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white ml-2 flex-shrink-0"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.remove(), 250);
+            }, 4000);
+        }
+
+        // Announcement Management
+        function getAnnouncement() {
+            return JSON.parse(localStorage.getItem('suthi_announcement_v2') || JSON.stringify({
+                banner: {
+                    title: '✨ เด็ก ๆ ปี 69 มาทางนี้! เปิดระบบบันทึกและรับรองผลงานแล้วจ้า ✨',
+                    body: 'ขอให้นักเรียนกรอกข้อมูล พร้อมเลือกกลุ่มการเรียน ใส่เลขประจำตัวนักเรียน และอัปโหลดหลักฐานเพื่อใช้ในการรับรองผลงาน (Verified) ประจำปีการศึกษา 2569',
+                    isActive: true
+                },
+                popup: {
+                    title: 'ยินดีต้อนรับสู่ระบบบันทึกและตรวจสอบกิจกรรม TCAS',
+                    body: 'โปรดตรวจสอบความถูกต้องของข้อมูลและเอกสารเกียรติบัตรก่อนทำการบันทึกข้อมูลยื่นเข้าระบบ',
+                    isActive: true
+                }
+            }));
+        }
+
+        function loadAnnouncement() {
+            const ann = getAnnouncement();
+            const banner = document.getElementById('announcementBanner');
+            
+            if (ann.banner && ann.banner.isActive) {
+                banner.classList.remove('hidden');
+                document.getElementById('bannerTitle').innerText = ann.banner.title;
+                document.getElementById('bannerBody').innerText = ann.banner.body;
+            } else {
+                banner.classList.add('hidden');
+            }
+
+            if (ann.popup && ann.popup.isActive && !sessionStorage.getItem('announcementRead')) {
+                document.getElementById('modalNoticeTitle').innerText = ann.popup.title;
+                document.getElementById('modalNoticeBody').innerText = ann.popup.body;
+                document.getElementById('announcementModal').classList.remove('hidden');
+            }
+
+            document.getElementById('adminBannerTitle').value = ann.banner ? ann.banner.title : '';
+            document.getElementById('adminBannerBody').value = ann.banner ? ann.banner.body : '';
+            document.getElementById('adminBannerActive').checked = ann.banner ? ann.banner.isActive : false;
+
+            document.getElementById('adminPopUpTitle').value = ann.popup ? ann.popup.title : '';
+            document.getElementById('adminPopUpBody').value = ann.popup ? ann.popup.body : '';
+            document.getElementById('adminPopUpActive').checked = ann.popup ? ann.popup.isActive : false;
+        }
+
+        function closeAnnouncementModal() {
+            document.getElementById('announcementModal').classList.add('hidden');
+            sessionStorage.setItem('announcementRead', 'true');
+        }
+
+        function saveAdminNotice() {
+            const ann = {
+                banner: {
+                    title: document.getElementById('adminBannerTitle').value || 'ประกาศจากโรงเรียน',
+                    body: document.getElementById('adminBannerBody').value || '',
+                    isActive: document.getElementById('adminBannerActive').checked
+                },
+                popup: {
+                    title: document.getElementById('adminPopUpTitle').value || 'ประกาศสำคัญ',
+                    body: document.getElementById('adminPopUpBody').value || '',
+                    isActive: document.getElementById('adminPopUpActive').checked
+                }
+            };
+            localStorage.setItem('suthi_announcement_v2', JSON.stringify(ann));
+            sessionStorage.removeItem('announcementRead');
+            loadAnnouncement();
+            showToast('บันทึกการตั้งค่าระบบประกาศเรียบร้อยแล้ว', 'success');
+        }
+
+        // Form Type Dynamic Field Input Selector
+        function toggleFormType(type) {
+            const container = document.getElementById('dynamicFieldContainer');
+            const label = document.getElementById('dynamicLabel');
+            const input = document.getElementById('dynamicInput');
+            
+            container.classList.remove('hidden');
+            if (type === 'prize') {
+                label.innerHTML = 'ชื่อรางวัล/ระดับที่ได้รับ (prize_name) <span class="text-red-500">*</span>';
+                input.placeholder = 'เช่น เหรียญทอง, ชนะเลิศอันดับ 1';
+                input.required = true;
+            } else if (type === 'project') {
+                label.innerHTML = 'ประเภทโครงงาน (project_type) <span class="text-red-500">*</span>';
+                input.placeholder = 'เช่น วิทยาศาสตร์, คณิตศาสตร์, สังคมศึกษา';
+                input.required = true;
+            } else if (type === 'activity') {
+                label.innerHTML = 'บทบาทในกิจกรรม (exp_name) <span class="text-red-500">*</span>';
+                input.placeholder = 'เช่น ประธานชมรม, สตาฟดำเนินงาน, ผู้เข้าร่วม';
+                input.required = true;
+            }
+        }
+
+        // File Handler: Convert File to Base64
+        function readFileAsBase64(file) {
+            return new Promise((resolve) => {
+                if (!file) return resolve(null);
+                const reader = new FileReader();
+                reader.onload = e => resolve({
+                    name: file.name,
+                    mimeType: file.type,
+                    base64: e.target.result
+                });
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ================= NEW FEATURE: File Change & Delete Handlers =================
+        async function handleFileChange(event, type) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const base64Obj = await readFileAsBase64(file);
+            if (type === 'cert') {
+                currentCertFileObj = base64Obj;
+                document.getElementById('certFileName').innerText = file.name;
+                document.getElementById('certFileStatus').classList.remove('hidden');
+                document.getElementById('clearCertBtn').classList.remove('hidden');
+            } else if (type === 'photo') {
+                currentPhotoFileObj = base64Obj;
+                document.getElementById('photoFileName').innerText = file.name;
+                document.getElementById('photoFileStatus').classList.remove('hidden');
+                document.getElementById('clearPhotoBtn').classList.remove('hidden');
+            }
+            showToast(`เลือกไฟล์ ${file.name} เรียบร้อยแล้ว`, 'info');
+        }
+
+        // ฟังก์ชันลบ/ยกเลิกไฟล์สำหรับปุ่ม "ลบไฟล์" ทั้งสองช่อง
+        function clearSelectedFile(type) {
+            if (type === 'cert') {
+                document.getElementById('certFileInput').value = '';
+                currentCertFileObj = null;
+                document.getElementById('certFileStatus').classList.add('hidden');
+                document.getElementById('clearCertBtn').classList.add('hidden');
+                showToast('ลบไฟล์เกียรติบัตรเรียบร้อยแล้ว', 'info');
+            } else if (type === 'photo') {
+                document.getElementById('photoFileInput').value = '';
+                currentPhotoFileObj = null;
+                document.getElementById('photoFileStatus').classList.add('hidden');
+                document.getElementById('clearPhotoBtn').classList.add('hidden');
+                showToast('ลบไฟล์รูปภาพกิจกรรมเรียบร้อยแล้ว', 'info');
+            }
+        }
+
+        // พรีวิวไฟล์รูป/PDF ที่เลือกจากเครื่อง
+        function previewSelectedLocalFile(type) {
+            const fileObj = type === 'cert' ? currentCertFileObj : currentPhotoFileObj;
+            if (fileObj && fileObj.base64) {
+                openImagePreview(fileObj.base64, fileObj.name, fileObj.mimeType);
+            } else {
+                showToast('ไม่พบไฟล์ที่จะพรีวิว', 'warning');
+            }
+        }
+
+        // Lightbox Preview Handler
+        function openImagePreview(url, title = 'ไฟล์หลักฐาน', mimeType = '') {
+    const modal = document.getElementById('imagePreviewModal');
+    const img = document.getElementById('previewModalImage');
+    const iframe = document.getElementById('previewModalIframe');
+    document.getElementById('previewModalTitle').innerText = title;
+
+    // 1. เคลียร์ event onerror เก่าเพื่อไม่ให้ตกค้างจากการเปิดครั้งก่อน
+    img.onerror = null;
+    iframe.onerror = null;
+
+    // 2. ซ่อน element แสดงผลไว้ก่อน
+    img.classList.add('hidden');
+    iframe.classList.add('hidden');
+
+    // 3. ฟังก์ชันการทำงานเมื่อโหลดไฟล์ไม่สำเร็จ
+    const handleFallback = () => {
+        modal.classList.add('hidden'); // ปิด Modal
+        window.open(url, '_blank');   // เปิดแท็บใหม่
+    };
+
+    const isPdf = mimeType.includes('pdf') || url.toLowerCase().includes('.pdf');
+
+    if (isPdf) {
+        iframe.onerror = handleFallback;
+        iframe.src = url;
+        iframe.classList.remove('hidden');
+    } else {
+        img.onerror = handleFallback;
+        img.src = url;
+        img.classList.remove('hidden');
+    }
+
+    modal.classList.remove('hidden');
+}
+
+        function closeImagePreview() {
+            document.getElementById('imagePreviewModal').classList.add('hidden');
+            document.getElementById('previewModalImage').src = '';
+            document.getElementById('previewModalIframe').src = '';
+        }
+
+        // Local Storage Backup Data Handler
+        function getLocalData() { return JSON.parse(localStorage.getItem('suthi_tcas_v3') || '[]'); }
+        function saveLocalData(data) { localStorage.setItem('suthi_tcas_v3', JSON.stringify(data)); }
+
+        function resetActivityForm() {
+            document.getElementById('activityForm').reset();
+            clearSelectedFile('cert');
+            clearSelectedFile('photo');
+            document.getElementById('dynamicFieldContainer').classList.add('hidden');
+            showToast('ล้างข้อมูลในแบบฟอร์มเรียบร้อยแล้ว', 'info');
+        }
+
+        // Form Submit Action
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+            
+            const typeRadio = document.querySelector('input[name="formType"]:checked');
+            const tcasRadio = document.querySelector('input[name="tcasCategory"]:checked');
+            
+            if (!typeRadio) return showToast('กรุณาเลือกประเภทแบบฟอร์ม', 'warning');
+            if (!tcasRadio) return showToast('กรุณาเลือกหมวดหมู่ TCAS', 'warning');
+
+            const studentIdVal = document.getElementById('studentId').value.trim();
+            if (studentIdVal.length !== 5) {
+                return showToast('กรุณาระบุเลขประจำตัวนักเรียนให้ถูกต้อง (5 หลัก)', 'warning');
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลดข้อมูลและไฟล์เข้าระบบ...`;
+
+            const formData = {
+                id: String(Date.now()),
+                title: document.getElementById('title').value,
+                firstName: document.getElementById('firstName').value,
+                lastName: document.getElementById('lastName').value,
+                citizenId: document.getElementById('citizenId').value,
+                grade: document.getElementById('grade').value,
+                room: document.getElementById('room').value,
+                programTrack: document.getElementById('programTrack').value,
+                studentId: studentIdVal, // บันทึกเลขประจำตัวนักเรียน
+                formType: typeRadio.value,
+                tcasCategory: tcasRadio.value,
+                programTitle: document.getElementById('programTitle').value,
+                dynamicField: document.getElementById('dynamicInput').value,
+                description: document.getElementById('description').value,
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                year: document.getElementById('year').value,
+                level: document.getElementById('level').value,
+                certFile: currentCertFileObj,
+                photoFile: currentPhotoFileObj,
+                newsUrl: document.getElementById('newsUrl').value || '',
+                status: 'PENDING',
+                remark: '' // รองรับข้อความแจ้งแก้ไขจากแอดมิน
+            };
+
+            // GAS Script or Local Fallback Execution
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> บันทึกและส่งข้อมูลกิจกรรมเข้าระบบ`;
+                        if (res.success) {
+                            showToast(res.message, 'success');
+                            resetActivityForm();
+                            fetchAdminData();
+                        } else {
+                            showToast(res.message, 'error');
+                        }
+                    })
+                    .withFailureHandler((err) => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> บันทึกและส่งข้อมูลกิจกรรมเข้าระบบ`;
+                        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.toString(), 'error');
+                    })
+                    .saveActivityToDrive(formData);
+            } else {
+                // Fallback to LocalStorage
+                const localData = getLocalData();
+                const certUrl = currentCertFileObj ? currentCertFileObj.base64 : '';
+                const photoUrl = currentPhotoFileObj ? currentPhotoFileObj.base64 : '';
+
+                localData.unshift({
+                    ...formData,
+                    certFile: currentCertFileObj ? { url: certUrl, name: currentCertFileObj.name, mimeType: currentCertFileObj.mimeType } : null,
+                    photoFile: currentPhotoFileObj ? { url: photoUrl, name: currentPhotoFileObj.name, mimeType: currentPhotoFileObj.mimeType } : null
+                });
+                saveLocalData(localData);
+
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> บันทึกและส่งข้อมูลกิจกรรมเข้าระบบ`;
+                showToast('บันทึกข้อมูลและอัปโหลดไฟล์เรียบร้อยแล้ว (Local Mode)', 'success');
+                resetActivityForm();
+                fetchAdminData();
+            }
+        }
+
+        // Fetch Data from Server or Local Storage
+        function fetchAdminData() {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler((data) => {
+                        adminDataList = data || [];
+                        updateDashboardCounters();
+                        handleAdminSearchAndFilter();
+                    })
+                    .getAllActivities();
+            } else {
+                adminDataList = getLocalData();
+                updateDashboardCounters();
+                handleAdminSearchAndFilter();
+            }
+        }
+
+        // Update Admin Dashboard Counters & Notification Badges
+        function updateDashboardCounters() {
+            const total = adminDataList.length;
+            const pending = adminDataList.filter(i => i.status === 'PENDING').length;
+            const approved = adminDataList.filter(i => i.status === 'APPROVED').length;
+            const rejected = adminDataList.filter(i => i.status === 'REJECTED').length;
+
+            document.getElementById('admStatTotal').innerText = total;
+            document.getElementById('admStatPending').innerText = pending;
+            document.getElementById('admStatApproved').innerText = approved;
+            document.getElementById('admStatRejected').innerText = rejected;
+
+            document.getElementById('catStatT').innerText = adminDataList.filter(i => i.tcasCategory === 'T').length;
+            document.getElementById('catStatC').innerText = adminDataList.filter(i => i.tcasCategory === 'C').length;
+            document.getElementById('catStatA').innerText = adminDataList.filter(i => i.tcasCategory === 'A').length;
+            document.getElementById('catStatS').innerText = adminDataList.filter(i => i.tcasCategory === 'S').length;
+
+            document.getElementById('formStatAct').innerText = adminDataList.filter(i => i.formType === 'activity').length;
+            document.getElementById('formStatPrz').innerText = adminDataList.filter(i => i.formType === 'prize').length;
+            document.getElementById('formStatPrj').innerText = adminDataList.filter(i => i.formType === 'project').length;
+
+            const navBadge = document.getElementById('navPendingBadge');
+            const pendingBanner = document.getElementById('adminPendingNoticeBanner');
+            const pendingCountBanner = document.getElementById('adminPendingCountBanner');
+
+            if (pending > 0) {
+                navBadge.innerText = pending;
+                navBadge.classList.remove('hidden');
+                pendingBanner.classList.remove('hidden');
+                pendingCountBanner.innerText = pending;
+            } else {
+                navBadge.classList.add('hidden');
+                pendingBanner.classList.add('hidden');
+            }
+        }
+
+        // Handle Admin Search & Filtering (รองรับการค้นหาตาม เลขประจำตัวนักเรียน)
+        function handleAdminSearchAndFilter() {
+            const searchKeyword = (document.getElementById('adminSearchInput').value || '').toLowerCase().trim();
+            const statusFilter = document.getElementById('adminStatusFilter').value;
+            const catFilter = document.getElementById('adminCatFilter').value;
+            const gradeFilter = document.getElementById('adminGradeFilter').value;
+
+            filteredAdminList = adminDataList.filter(item => {
+                const fullName = `${item.title || ''}${item.firstName || ''} ${item.lastName || ''}`.toLowerCase();
+                const cid = String(item.citizenId || '').toLowerCase();
+                const stId = String(item.studentId || '').toLowerCase();
+                const pTitle = String(item.programTitle || '').toLowerCase();
+
+                const matchesKeyword = !searchKeyword || fullName.includes(searchKeyword) || cid.includes(searchKeyword) || stId.includes(searchKeyword) || pTitle.includes(searchKeyword);
+                const matchesStatus = (statusFilter === 'ALL') || (item.status === statusFilter);
+                const matchesCat = (catFilter === 'ALL') || (item.tcasCategory === catFilter);
+                const matchesGrade = (gradeFilter === 'ALL') || (item.grade === gradeFilter);
+
+                return matchesKeyword && matchesStatus && matchesCat && matchesGrade;
+            });
+
+            currentPage = 1;
+            renderAdminTable();
+        }
+
+        function filterByStatus(status) {
+            document.getElementById('adminStatusFilter').value = status;
+            handleAdminSearchAndFilter();
+        }
+
+        // Search Student Status (รองรับค้นด้วย เลขประจำตัวประชาชน หรือ เลขประจำตัวนักเรียน)
+        function checkStudentStatus() {
+            const searchInput = document.getElementById('searchCitizenId').value.trim();
+            if (!searchInput) return showToast('กรุณากรอกเลขประจำตัวประชาชน (13 หลัก) หรือเลขประจำตัวนักเรียน (5 หลัก)', 'warning');
+
+            const studentItems = adminDataList.filter(item => 
+                String(item.citizenId) === searchInput || String(item.studentId) === searchInput
+            );
+
+            const resultDiv = document.getElementById('studentStatusResult');
+            const summaryDiv = document.getElementById('studentDashboardSummary');
+            const tbody = document.getElementById('studentStatusBody');
+
+            if (studentItems.length === 0) {
+                resultDiv.classList.add('hidden');
+                summaryDiv.classList.add('hidden');
+                showToast('ไม่พบข้อมูลผลงานในระบบสำหรับรหัสนักเรียน/เลข ปชช. นี้', 'warning');
+                return;
+            }
+
+            const stTotal = studentItems.length;
+            const stApproved = studentItems.filter(i => i.status === 'APPROVED').length;
+            const stPending = studentItems.filter(i => i.status === 'PENDING').length;
+            const stRejected = studentItems.filter(i => i.status === 'REJECTED').length;
+
+            const sample = studentItems[0];
+            document.getElementById('studentInfoTitle').innerHTML = `
+                <i class="fa-solid fa-id-card-clip text-pink-600"></i> สรุปภาพรวมผลงานของ: 
+                <span class="text-pink-700">${sample.title || ''}${sample.firstName} ${sample.lastName}</span> 
+                (เลขประจำตัว: <span class="font-mono underline">${sample.studentId || 'ไม่ระบุ'}</span> | ${sample.grade}/${sample.room})
+            `;
+            
+            document.getElementById('stStatTotal').innerText = stTotal;
+            document.getElementById('stStatApproved').innerText = stApproved;
+            document.getElementById('stStatPending').innerText = stPending;
+            document.getElementById('stStatRejected').innerText = stRejected;
+
+            summaryDiv.classList.remove('hidden');
+            resultDiv.classList.remove('hidden');
+
+            showToast(`พบผลงานทั้งหมด ${stTotal} รายการ`, 'success');
+
+            // Render Table Rows for Student with Admin Feedback Display
+            tbody.innerHTML = studentItems.map(item => `
+                <tr class="hover:bg-slate-50 transition ${item.status === 'REJECTED' ? 'bg-rose-50/40' : ''}">
+                    <td class="py-3 px-4 text-center">
+                        <div class="flex flex-col items-center gap-1">
+                            <img src="${STATUS_ICONS[item.status]}" class="w-6 h-6" alt="${item.status}">
+                            <span class="text-[11px] font-bold ${item.status === 'APPROVED' ? 'text-emerald-600' : item.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}">${STATUS_TEXT[item.status]}</span>
+                        </div>
+                    </td>
+                    <td class="py-3 px-4">
+                        <div class="font-bold text-slate-800 text-base">${item.programTitle}</div>
+                        <div class="text-xs text-slate-500 mb-1">${item.dynamicField || ''}</div>
+                        
+                        <!-- แสดงข้อความจากแอดมินถ้ามีให้แก้ไข (HIGHLIGHTED FEEDBACK) -->
+                        ${item.remark ? `
+                            <div class="mt-2 p-3 bg-rose-100 border-l-4 border-rose-600 rounded-r-xl text-xs text-rose-900 font-semibold shadow-sm flex items-start gap-2.5">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-600 text-base mt-0.5"></i>
+                                <div>
+                                    <span class="font-extrabold text-rose-800 underline">ข้อความแจ้งแก้ไขจากแอดมิน:</span> 
+                                    <p class="mt-0.5 text-rose-900 leading-relaxed font-medium">${item.remark}</p>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="px-2 py-1 bg-pink-100 text-pink-700 font-bold text-xs rounded-md">Category: ${item.tcasCategory}</span>
+                    </td>
+                    <td class="py-3 px-4 text-xs text-slate-600">${item.startDate} - ${item.endDate}</td>
+                    <td class="py-3 px-4 text-center">
+                        <div class="flex justify-center gap-2">
+                            ${item.certFile ? `<button onclick="openImagePreview('${item.certFile.url}', '${item.certFile.name}', '${item.certFile.mimeType||''}')" class="text-amber-600 hover:text-amber-800 text-xs p-1.5 bg-amber-50 rounded-lg border border-amber-200" title="ดูเกียรติบัตร: ${item.certFile.name}"><i class="fa-solid fa-award text-lg"></i></button>` : ''}
+                            ${item.photoFile ? `<button onclick="openImagePreview('${item.photoFile.url}', '${item.photoFile.name}', '${item.photoFile.mimeType||''}')" class="text-emerald-600 hover:text-emerald-800 text-xs p-1.5 bg-emerald-50 rounded-lg border border-emerald-200" title="ดูรูปภาพ: ${item.photoFile.name}"><i class="fa-solid fa-images text-lg"></i></button>` : ''}
+                            ${item.newsUrl ? `<a href="${item.newsUrl}" target="_blank" class="text-indigo-600 hover:text-indigo-800 text-xs p-1.5 bg-indigo-50 rounded-lg border border-indigo-200" title="ลิงก์ข่าว"><i class="fa-solid fa-newspaper text-lg"></i></a>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Pagination Logic & Admin Table Renderer
+        function renderAdminTable() {
+            const tbody = document.getElementById('adminTableBody');
+            const paginationInfo = document.getElementById('paginationInfo');
+            const paginationButtons = document.getElementById('paginationButtons');
+
+            if (filteredAdminList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 font-medium">ไม่พบรายการผลงานที่ตรงตามเงื่อนไขการค้นหา</td></tr>`;
+                paginationInfo.innerText = 'กำลังแสดง 0 ถึง 0 จาก 0 รายการ';
+                paginationButtons.innerHTML = '';
+                return;
+            }
+
+            const totalItems = filteredAdminList.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+            const paginatedItems = filteredAdminList.slice(startIndex, endIndex);
+
+            // Render Table Rows with Admin Remark controls & Checkbox Selection
+            tbody.innerHTML = paginatedItems.map(item => `
+                <tr class="hover:bg-slate-50 transition ${selectedRowIds.has(String(item.id)) ? 'bg-indigo-50/60' : ''}">
+                    <td class="py-3 px-3 text-center">
+                        <input type="checkbox" onchange="toggleRowSelection('${item.id}', this.checked)" ${selectedRowIds.has(String(item.id)) ? 'checked' : ''} class="w-4 h-4 rounded text-pink-600">
+                    </td>
+                    <td class="py-3 px-3 text-center">
+                        <img src="${STATUS_ICONS[item.status]}" class="w-6 h-6 mx-auto" title="${STATUS_TEXT[item.status]}">
+                    </td>
+                    <td class="py-3 px-3">
+                        <div class="font-bold text-slate-800">${item.title || ''}${item.firstName} ${item.lastName}</div>
+                        <div class="text-xs text-slate-500">เลขนักเรียน: <span class="font-mono font-bold text-indigo-700">${item.studentId || 'ไม่ระบุ'}</span> | ปชช: ${item.citizenId}</div>
+                        <div class="text-[11px] text-pink-700 font-semibold">${item.grade || ''}/${item.room || ''} | ${item.programTrack || 'ไม่ระบุสายเรียน'}</div>
+                    </td>
+                    <td class="py-3 px-3 text-center">
+                        <span class="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[11px] font-bold">${item.formType}</span>
+                        <span class="px-2 py-0.5 bg-pink-100 text-pink-700 rounded text-[11px] font-bold ml-1">Cat: ${item.tcasCategory}</span>
+                    </td>
+                    <td class="py-3 px-3">
+                        <div class="font-bold text-slate-800 truncate w-44" title="${item.programTitle}">${item.programTitle}</div>
+                        <div class="text-xs text-slate-500">${item.dynamicField || ''}</div>
+                        ${item.remark ? `<div class="text-[11px] text-rose-600 font-bold truncate w-44 mt-0.5 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200" title="${item.remark}"><i class="fa-solid fa-comment-dots"></i> แจ้งแก้: ${item.remark}</div>` : ''}
+                    </td>
+                    <td class="py-3 px-3 text-xs">${item.startDate}<br>${item.endDate}</td>
+                    <td class="py-3 px-3 text-center">
+                        <div class="flex justify-center gap-1.5">
+                            ${item.certFile ? `<button onclick="openImagePreview('${item.certFile.url}', '${item.certFile.name}', '${item.certFile.mimeType||''}')" class="p-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg shadow-sm border border-amber-200" title="เกียรติบัตร: ${item.certFile.name}"><i class="fa-solid fa-award"></i></button>` : '<span class="text-slate-300 text-xs">-</span>'}
+                            ${item.photoFile ? `<button onclick="openImagePreview('${item.photoFile.url}', '${item.photoFile.name}', '${item.photoFile.mimeType||''}')" class="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg shadow-sm border border-emerald-200" title="รูปกิจกรรม: ${item.photoFile.name}"><i class="fa-solid fa-images"></i></button>` : '<span class="text-slate-300 text-xs">-</span>'}
+                            ${item.newsUrl ? `<a href="${item.newsUrl}" target="_blank" class="p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg shadow-sm border border-indigo-200" title="ลิงก์ข่าว"><i class="fa-solid fa-newspaper"></i></a>` : ''}
+                        </div>
+                    </td>
+                    <td class="py-3 px-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <select onchange="handleStatusSelectChange('${item.id}', this.value)" class="text-xs border border-slate-300 rounded-lg p-1 bg-white font-semibold">
+                                <option value="PENDING" ${item.status === 'PENDING' ? 'selected' : ''}>รอการยืนยัน</option>
+                                <option value="APPROVED" ${item.status === 'APPROVED' ? 'selected' : ''}>Verified (เรียบร้อย)</option>
+                                <option value="REJECTED" ${item.status === 'REJECTED' ? 'selected' : ''}>ข้อมูลไม่ครบ</option>
+                            </select>
+                            <button onclick="openRemarkModal('${item.id}')" class="p-1 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200" title="เขียนข้อความแจ้งแก้นักเรียน">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button onclick="deleteItem('${item.id}')" class="text-rose-500 hover:text-rose-700 p-1" title="ลบรายการ"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            paginationInfo.innerText = `กำลังแสดง ${startIndex + 1} ถึง ${endIndex} จาก ${totalItems} รายการ`;
+
+            let buttonsHTML = '';
+            buttonsHTML += `
+                <button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-chevron-left"></i> ย้อนกลับ
+                </button>
+            `;
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    buttonsHTML += `<button class="px-3 py-1.5 rounded-lg text-xs font-bold bg-pink-600 text-white shadow">${i}</button>`;
+                } else {
+                    buttonsHTML += `<button onclick="goToPage(${i})" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50">${i}</button>`;
+                }
+            }
+
+            buttonsHTML += `
+                <button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                    ถัดไป <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            `;
+
+            paginationButtons.innerHTML = buttonsHTML;
+        }
+
+        // Row Selection Logic for Bulk Operations
+        function toggleRowSelection(id, isSelected) {
+            if (isSelected) {
+                selectedRowIds.add(String(id));
+            } else {
+                selectedRowIds.delete(String(id));
+            }
+            updateBulkActionBar();
+        }
+
+        function toggleSelectAllRows(isChecked) {
+            if (isChecked) {
+                filteredAdminList.forEach(item => selectedRowIds.add(String(item.id)));
+            } else {
+                selectedRowIds.clear();
+            }
+            renderAdminTable();
+            updateBulkActionBar();
+        }
+
+        function updateBulkActionBar() {
+            const container = document.getElementById('bulkActionsContainer');
+            const countText = document.getElementById('selectedCountText');
+            if (selectedRowIds.size > 0) {
+                container.classList.remove('hidden');
+                countText.innerText = `เลือก ${selectedRowIds.size} รายการ`;
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function bulkApproveSelected() {
+            if (confirm(`คุณต้องการอนุมัติผลงานที่เลือกทั้ง ${selectedRowIds.size} รายการใช่หรือไม่?`)) {
+                selectedRowIds.forEach(id => updateStatusAndRemark(id, 'APPROVED', '', false));
+                selectedRowIds.clear();
+                updateBulkActionBar();
+                fetchAdminData();
+                showToast('อนุมัติรายการที่เลือกเรียบร้อยแล้ว', 'success');
+            }
+        }
+
+        function bulkDeleteSelected() {
+            if (confirm(`คุณต้องการลบผลงานที่เลือกทั้ง ${selectedRowIds.size} รายการออกจากระบบใช่หรือไม่?`)) {
+                selectedRowIds.forEach(id => deleteItem(id, false));
+                selectedRowIds.clear();
+                updateBulkActionBar();
+                fetchAdminData();
+                showToast('ลบรายการที่เลือกเรียบร้อยแล้ว', 'info');
+            }
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderAdminTable();
+        }
+
+        function changeItemsPerPage(val) {
+            itemsPerPage = parseInt(val);
+            currentPage = 1;
+            renderAdminTable();
+        }
+
+        // Handle Admin Remark & Status Change Logic
+        function handleStatusSelectChange(id, selectedStatus) {
+            if (selectedStatus === 'REJECTED') {
+                openRemarkModal(id);
+            } else {
+                updateStatusAndRemark(id, selectedStatus, '');
+            }
+        }
+
+        function openRemarkModal(id) {
+            activeRemarkItemId = id;
+            const item = adminDataList.find(i => String(i.id) === String(id));
+            if (item) {
+                document.getElementById('remarkModalTargetName').innerText = `นักเรียน: ${item.firstName} ${item.lastName} (เลขนักเรียน: ${item.studentId || '-'}) - ${item.programTitle}`;
+                document.getElementById('adminRemarkInput').value = item.remark || '';
+                document.getElementById('adminRemarkModal').classList.remove('hidden');
+            }
+        }
+
+        function closeRemarkModal() {
+            document.getElementById('adminRemarkModal').classList.add('hidden');
+            activeRemarkItemId = null;
+        }
+
+        function clearCurrentRemark() {
+            document.getElementById('adminRemarkInput').value = '';
+            if (activeRemarkItemId) {
+                updateStatusAndRemark(activeRemarkItemId, 'PENDING', '');
+                closeRemarkModal();
+            }
+        }
+
+        function saveAdminRemark() {
+            const remarkText = document.getElementById('adminRemarkInput').value.trim();
+            if (!remarkText) {
+                return showToast('กรุณาระบุข้อความรายละเอียดที่ต้องการให้นักเรียนแก้ไข', 'warning');
+            }
+            if (activeRemarkItemId) {
+                updateStatusAndRemark(activeRemarkItemId, 'REJECTED', remarkText);
+                closeRemarkModal();
+            }
+        }
+
+        // Update Item Status & Remark in Google Sheet or LocalStorage
+        function updateStatusAndRemark(id, newStatus, remarkText, refresh = true) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        if (res.success && refresh) {
+                            showToast(`อัปเดตสถานะเป็น ${STATUS_TEXT[newStatus]} เรียบร้อยแล้ว`, 'success');
+                            fetchAdminData();
+                        }
+                    })
+                    .updateStatusInSheet(id, newStatus, remarkText);
+            } else {
+                const localData = getLocalData();
+                const idx = localData.findIndex(item => String(item.id) === String(id));
+                if (idx !== -1) {
+                    localData[idx].status = newStatus;
+                    localData[idx].remark = remarkText;
+                    saveLocalData(localData);
+                    if (refresh) {
+                        fetchAdminData();
+                        showToast(`อัปเดตสถานะเป็น ${STATUS_TEXT[newStatus]} เรียบร้อยแล้ว`, 'success');
+                    }
+                }
+            }
+        }
+
+        // Delete Item
+        function deleteItem(id, refresh = true) {
+            if (!refresh || confirm('คุณต้องการลบข้อมูลผลงานนี้ออกจากระบบใช่หรือไม่?')) {
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    google.script.run
+                        .withSuccessHandler((res) => {
+                            if (res.success && refresh) {
+                                showToast('ลบข้อมูลออกจากระบบแล้ว', 'info');
+                                fetchAdminData();
+                            }
+                        })
+                        .deleteActivityFromSheet(id);
+                } else {
+                    const localData = getLocalData().filter(item => String(item.id) !== String(id));
+                    saveLocalData(localData);
+                    if (refresh) {
+                        fetchAdminData();
+                        showToast('ลบข้อมูลออกจากระบบแล้ว', 'info');
+                    }
+                }
+            }
+        }
+
+        // Export Data to CSV (รวมฟิลด์ เลขประจำตัวนักเรียน)
+        function exportToCSV() {
+    if (!adminDataList || adminDataList.length === 0) {
+        return showToast('ไม่มีข้อมูลสำหรับส่งออก', 'warning');
+    }
+
+    // 1. กรองดึงมาเฉพาะรายการที่สถานะเป็น 'approve' หรือ 'approved' หรือ 'อนุมัติ'
+    const approvedData = adminDataList.filter(item => {
+        const status = (item.status || '').toLowerCase().trim();
+        return status === 'approve' || status === 'approved' || status.includes('อนุมัติ');
+    });
+
+    if (approvedData.length === 0) {
+        return showToast('ไม่มีข้อมูลที่ได้รับการอนุมัติ (Approved) สำหรับส่งออก', 'warning');
+    }
+
+    // 2. แยกข้อมูลตามประเภทแบบฟอร์ม (formType)
+    const activities = approvedData.filter(item => (item.formType || '').toLowerCase() === 'activity');
+    const prizes = approvedData.filter(item => (item.formType || '').toLowerCase() === 'prizes' || (item.formType || '').toLowerCase() === 'prize');
+    const projects = approvedData.filter(item => (item.formType || '').toLowerCase() === 'project');
+
+    let exportedCount = 0;
+    const dateStr = new Date().toISOString().slice(0, 10);
+
+    // ฟังก์ชันย่อยสำหรับสร้างและดาวน์โหลดไฟล์ CSV ตามโครงสร้างที่กำหนด
+    const downloadFile = (filename, headers, dataArray, mapFn) => {
+        if (dataArray.length === 0) return; // ถ้าไม่มีข้อมูลในหมวดนี้ ไม่ต้องโหลดไฟล์
+
+        let csvContent = "\uFEFF"; // UTF-8 BOM ทำให้เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน
+        csvContent += headers.join(",") + "\n";
+
+        dataArray.forEach(item => {
+            const row = mapFn(item);
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        exportedCount++;
+    };
+
+    // ---------------------------------------------------------
+    // 3. ส่งออกไฟล์ 01-activities
+    // ---------------------------------------------------------
+    downloadFile(
+        `01-activities_${dateStr}.csv`,
+        ["citizen_id", "title", "first_name", "last_name", "program_title", "exp_name", "description", "date", "end_date", "year", "level", "hours", "fee"],
+        activities,
+        item => [
+            `"'${item.citizenId || ''}"`, // ใส่ ' เพื่อป้องกัน Excel ตัดเลข 0 ข้างหน้า
+            `"${item.title || ''}"`,
+            `"${item.firstName || ''}"`,
+            `"${item.lastName || ''}"`,
+            `"${(item.programTitle || '').replace(/"/g, '""')}"`, // ชื่อโครงการ (project_title)
+            `"${(item.programTitle || '').replace(/"/g, '""')}"`, // ชื่อโครงการ (exp_name)
+            `"${(item.dynamicField || '').replace(/"/g, '""')}"`, // ระบุเฉพาะ (description)
+            `"${item.startDate || ''}"`,
+            `"${item.endDate || ''}"`,
+            `"${item.year || ''}"`,
+            `"${item.level || ''}"`,
+            `"${item.hours || ''}"`,
+            `"${item.fee || ''}"`
+        ]
+    );
+
+    // ---------------------------------------------------------
+    // 4. ส่งออกไฟล์ 02-prizes
+    // ---------------------------------------------------------
+    downloadFile(
+        `02-prizes_${dateStr}.csv`,
+        ["citizen_id", "title", "first_name", "last_name", "program_title", "prize_name", "description", "date", "end_date", "year", "level", "hours", "fee"],
+        prizes,
+        item => [
+            `"'${item.citizenId || ''}"`,
+            `"${item.title || ''}"`,
+            `"${item.firstName || ''}"`,
+            `"${item.lastName || ''}"`,
+            `"${(item.programTitle || '').replace(/"/g, '""')}"`, // ชื่อโครงการ (project_title)
+            `"${(item.programTitle || '').replace(/"/g, '""')}"`, // ชื่อรางวัล (prize_name)
+            `"${(item.dynamicField || '').replace(/"/g, '""')}"`, // ระบุเฉพาะ (description)
+            `"${item.startDate || ''}"`,
+            `"${item.endDate || ''}"`,
+            `"${item.year || ''}"`,
+            `"${item.level || ''}"`,
+            `"${item.hours || ''}"`,
+            `"${item.fee || ''}"`
+        ]
+    );
+
+    // ---------------------------------------------------------
+    // 5. ส่งออกไฟล์ 03-projects
+    // ---------------------------------------------------------
+    downloadFile(
+        `03-projects_${dateStr}.csv`,
+        ["citizen_id", "title", "first_name", "last_name", "project_title", "project_type", "description", "date", "end_date", "year", "level", "hours", "fee"],
+        projects,
+        item => [
+            `"'${item.citizenId || ''}"`,
+            `"${item.title || ''}"`,
+            `"${item.firstName || ''}"`,
+            `"${item.lastName || ''}"`,
+            `"${(item.programTitle || '').replace(/"/g, '""')}"`, // ชื่อโครงการ (project_title)
+            `"${(item.tcasCategory || '').replace(/"/g, '""')}"`, // หมวด TCAS (project_type)
+            `"${(item.dynamicField || '').replace(/"/g, '""')}"`, // ระบุเฉพาะ (description)
+            `"${item.startDate || ''}"`,
+            `"${item.endDate || ''}"`,
+            `"${item.year || ''}"`,
+            `"${item.level || ''}"`,
+            `"${item.hours || ''}"`,
+            `"${item.fee || ''}"`
+        ]
+    );
+
+    // แจ้งเตือนผลลัพธ์
+    if (exportedCount > 0) {
+        showToast(`ส่งออกข้อมูลเรียบร้อยแล้ว จำนวน ${exportedCount} ไฟล์`, 'success');
+    } else {
+        showToast('ไม่มีข้อมูลตรงกับประเภทฟอร์มที่ระบุ', 'warning');
+    }
+}
+
+        // Admin Authentication, Session & Logout Management
+        function handleAdminNavClick() {
+            const isAdminLoggedIn = sessionStorage.getItem('suthi_admin_auth') === 'true' || localStorage.getItem('suthi_admin_auth') === 'true';
+            if (isAdminLoggedIn) {
+                switchTab('admin');
+            } else {
+                showAdminLogin();
+            }
+        }
+
+        function showAdminLogin() { document.getElementById('adminLoginModal').classList.remove('hidden'); }
+        function closeAdminLogin() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+            document.getElementById('adminPassword').value = '';
+        }
+
+        function verifyAdmin() {
+            const pwd = document.getElementById('adminPassword').value;
+            if (pwd === 'suthi99999') {
+                // บันทึกจดจำเซสซั่น (Session Persistence)
+                sessionStorage.setItem('suthi_admin_auth', 'true');
+                localStorage.setItem('suthi_admin_auth', 'true');
+                checkAdminSessionStatus();
+
+                closeAdminLogin();
+                switchTab('admin');
+                showToast('เข้าสู่ระบบแอดมินเรียบร้อยแล้ว', 'success');
+            } else {
+                showToast('รหัสผ่านแอดมินไม่ถูกต้อง', 'error');
+            }
+        }
+
+        // ฟังก์ชันออกจากระบบสำหรับแอดมิน (Admin Logout)
+        function adminLogout() {
+            if (confirm('คุณต้องการออกจากระบบแอดมินใช่หรือไม่?')) {
+                sessionStorage.removeItem('suthi_admin_auth');
+                localStorage.removeItem('suthi_admin_auth');
+                checkAdminSessionStatus();
+                switchTab('student');
+                showToast('ออกจากระบบแอดมินเรียบร้อยแล้ว', 'info');
+            }
+        }
+
+        function switchTab(tab) {
+            if (tab === 'student') {
+                document.getElementById('studentView').classList.remove('hidden');
+                document.getElementById('adminView').classList.add('hidden');
+                document.getElementById('navStudentBtn').className = "px-4 py-2 rounded-lg font-semibold transition text-pink-700 bg-pink-50 hover:bg-pink-100 flex items-center gap-2 text-xs md:text-sm";
+                document.getElementById('navAdminBtn').className = "relative px-4 py-2 rounded-lg font-semibold transition text-slate-600 hover:bg-slate-100 flex items-center gap-2 text-xs md:text-sm";
+            } else {
+                document.getElementById('studentView').classList.add('hidden');
+                document.getElementById('adminView').classList.remove('hidden');
+                document.getElementById('navStudentBtn').className = "px-4 py-2 rounded-lg font-semibold transition text-slate-600 hover:bg-slate-100 flex items-center gap-2 text-xs md:text-sm";
+                document.getElementById('navAdminBtn').className = "relative px-4 py-2 rounded-lg font-semibold transition text-pink-700 bg-pink-50 hover:bg-pink-100 flex items-center gap-2 text-xs md:text-sm";
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        // ฟังก์ชัน Helper สำหรับอ่านไฟล์เป็น Base64
+// ❌ สามารถลบฟังก์ชัน fileToBase64() ทิ้งไปได้เลยครับ เพราะมี readFileAsBase64() และ compressImage() ทำหน้าที่แทนแล้ว
+
+/**
+ * ฟังก์ชันจัดการเมื่อกดปุ่ม "บันทึกและส่งข้อมูล"
+ */
+function handleFormSubmit(e) {
+    e.preventDefault();
+
+    // ป้องกันการกดซ้ำโดยเปลี่ยนปุ่มเป็นสถานะกำลังโหลด
+    const submitBtn = document.getElementById('submitBtn');
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลดข้อมูล...';
+    submitBtn.disabled = true;
+
+    // รวบรวมข้อมูลจากฟอร์ม
+    const payload = {
+        id: 'ACT-' + Date.now().toString(),
+        title: document.getElementById('title').value,
+        firstName: document.getElementById('firstName').value,
+        lastName: document.getElementById('lastName').value,
+        citizenId: document.getElementById('citizenId').value,
+        studentId: document.getElementById('studentId').value,
+        grade: document.getElementById('grade').value,
+        room: document.getElementById('room').value,
+        programTrack: document.getElementById('programTrack').value,
+        formType: document.querySelector('input[name="formType"]:checked')?.value || '',
+        tcasCategory: document.querySelector('input[name="tcasCategory"]:checked')?.value || '',
+        programTitle: document.getElementById('programTitle').value,
+        dynamicField: document.getElementById('dynamicInput')?.value || '',
+        startDate: document.getElementById('startDate').value,
+        endDate: document.getElementById('endDate').value,
+        newsUrl: document.getElementById('newsUrl')?.value || '',
+        
+        // 🔥 ดึงข้อมูลไฟล์จากตัวแปร Global ที่ระบบ Drag & Drop สร้างไว้ให้ (บีบอัดแล้ว)
+        certFile: currentCertFileObj,
+        photoFile: currentPhotoFileObj
+    };
+
+    // ส่งข้อมูลไปยัง Code.gs
+    google.script.run
+        .withSuccessHandler((res) => {
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
+            
+            if (res.success) {
+                alert(res.message);
+                resetActivityForm(); // ล้างฟอร์มเมื่อสำเร็จ
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + res.message);
+            }
+        })
+        .withFailureHandler((err) => {
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message);
+        })
+        .saveActivityToDrive(payload);
+}
+    </script>
+</body>
+</html>
